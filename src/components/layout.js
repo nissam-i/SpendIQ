@@ -49,21 +49,21 @@ const Header = () => {
   const unread = notifications.filter(n => !n.read).length;
   
   return (
-    <header className="h-16 bg-surface border-b flex items-center justify-between px-6 sticky top-0 z-10 w-full">
+    <header className="h-16 bg-surface border-b border-border flex items-center justify-between px-6 sticky top-0 z-10 w-full transition-colors duration-200">
       <div className="flex items-center md:hidden gap-3 font-bold text-xl">
         <lucide.Wallet size={24} className="text-primary" />
         SpendIQ
       </div>
       <div className="hidden md:flex flex-1"></div>
       <div className="flex items-center gap-4">
-        <button className="relative p-2 text-textSecondary hover:bg-gray-100 rounded-full">
+        <button className="relative p-2 text-textSecondary hover:bg-surface rounded-full transition-colors">
           <lucide.Bell size={20} />
           {unread > 0 && (
-            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-danger rounded-full border-2 border-white"></span>
+            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-danger rounded-full border-2 border-surface"></span>
           )}
         </button>
-        <div className="h-8 w-px bg-gray-200 mx-1"></div>
-        <button onClick={logout} className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text">
+        <div className="h-8 w-px bg-border mx-1"></div>
+        <button onClick={logout} className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text transition-colors">
           <lucide.LogOut size={18} />
           <span className="hidden sm:inline">Logout</span>
         </button>
@@ -77,7 +77,7 @@ const Layout = ({ children }) => {
   if (!user) return <ReactRouterDOM.Navigate to="/login" replace />;
   
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-bg text-text flex font-sans transition-colors duration-200">
       <Sidebar />
       <div className="flex-1 flex flex-col md:ml-64 w-full">
         <Header />

@@ -45,8 +45,8 @@ const Analytics = () => {
   const COLORS = ['#1a56db', '#7e3af2', '#057a55', '#e02424', '#c27803', '#0369a1', '#be185d', '#0f766e', '#4338ca', '#86198f', '#b91c1c'];
 
 
-  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text');
-  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--color-surface');
+  const textColor = 'var(--color-textSecondary)';
+  const surfaceColor = 'var(--color-surface)';
 
   return (
     <div className="space-y-6">

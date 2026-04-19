@@ -91,8 +91,8 @@ const Investments = () => {
   const totalPnlPct = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
 
 
-  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text');
-  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--color-surface');
+  const textColor = 'var(--color-textSecondary)';
+  const surfaceColor = 'var(--color-surface)';
 
   return (
     <div className="space-y-6">
