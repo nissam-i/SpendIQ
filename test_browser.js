@@ -26,7 +26,8 @@ const puppeteer = require('puppeteer');
     });
 
     console.log("Navigating to index...");
-    await page.goto(`file://C:/report%20project/finance_tracker.html`, { waitUntil: 'networkidle0' });
+    const fileUrl = `file:///${path.join(process.cwd(), 'index.html').replace(/\\/g, '/')}`;
+    await page.goto(fileUrl, { waitUntil: 'networkidle0' });
 
     const routes = ['#/dashboard', '#/settings', '#/analytics', '#/transactions', '#/budget', '#/investments', '#/reports'];
     

@@ -52,7 +52,5 @@ let template = fs.readFileSync(templatePath, 'utf8');
 
 const finalHtml = template.replace('// [[APP_CONTENT]]', jsContent);
 
-const outputPath = path.join(__dirname, 'finance_tracker.html');
-fs.writeFileSync(outputPath, finalHtml);
-
-console.log(`Successfully built ${outputPath} with ${jsContent.split('\n').length} lines of JS code.`);
+fs.writeFileSync('index.html', finalHtml);
+console.log(`Successfully built ${path.join(process.cwd(), 'index.html')} with ${finalHtml.split('\n').length} lines of JS code.`);
