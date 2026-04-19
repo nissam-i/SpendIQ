@@ -13,7 +13,7 @@ const AppProvider = ({ children }) => {
     accentColor: 'blue', 
     currency: 'INR', 
     alertsEnabled: true,
-    geminiKey: 'AIzaSyBn15hcDu5nYpb7-ecerLGPlfMLr_BcqQ8'
+    geminiKey: ''
   });
   
   const [metalPrices, setMetalPrices] = React.useState({
@@ -54,7 +54,7 @@ const AppProvider = ({ children }) => {
       const ss = localStorage.getItem('fintrack_settings');
       if (ss) {
         let parsed = JSON.parse(ss);
-        if(!parsed.geminiKey) parsed.geminiKey = 'AIzaSyBn15hcDu5nYpb7-ecerLGPlfMLr_BcqQ8';
+        if(!parsed.geminiKey) parsed.geminiKey = '';
         setSettings(parsed);
       }
     }
