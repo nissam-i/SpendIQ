@@ -1,0 +1,2399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpendIQ — Personal Finance Tracker</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: 'var(--color-primary)',
+            primaryLight: 'var(--color-primary-light)',
+            primaryHover: 'var(--color-primary-hover)',
+            surface: 'var(--color-surface)',
+            sidebar: 'var(--color-sidebar)',
+            sidebarText: 'var(--color-sidebarText)',
+            text: 'var(--color-text)',
+            textSecondary: 'var(--color-textSecondary)',
+            border: 'var(--color-border)',
+            background: 'var(--color-bg)',
+            success: '#057a55',
+            danger: '#e02424',
+            warning: '#c27803',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    .custom-card {
+      box-shadow: var(--color-cardShadow);
+      border-radius: 12px;
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+  </style>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- React Router DOM -->
+  <script src="https://unpkg.com/history@5.2.0/umd/history.production.min.js"></script>
+  <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.production.min.js"></script>
+  <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.production.min.js"></script>
+  <!-- PropTypes (Needed by Recharts) -->
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <!-- Recharts -->
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+  <!-- PapaParse -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+
+/* --- globals.js --- */
+const { HashRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } = ReactRouterDOM;
+const { PieChart, Pie, Cell, Tooltip, BarChart, Bar, AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } = window.Recharts;
+
+// Polyfill lucide icons so we can use `<lucide.Home />` directly in our JSX
+if (window.lucide && typeof window.lucide === 'object') {
+  Object.keys(window.lucide).forEach(key => {
+    const originalNode = window.lucide[key];
+    if (Array.isArray(originalNode) && originalNode.length > 0) {
+      window.lucide[key] = ({ size = 24, className = '', strokeWidth = 2, color = 'currentColor', ...props }) => {
+        // Build SVG HTML string
+        const attrs = {
+           width: size, height: size, fill: 'none', stroke: color, 
+           'stroke-width': strokeWidth, 'stroke-linecap': 'round', 
+           'stroke-linejoin': 'round', class: `lucide lucide-${key.toLowerCase()} ${className}`
+        };
+        const attrsStr = Object.entries(attrs).map(([k,v]) => `${k}="${v}"`).join(' ');
+        
+        // Children tags (like <path>, <circle>)
+        const childrenStr = originalNode.map(([tag, childAttrs]) => {
+           const caStr = Object.entries(childAttrs).map(([k,v]) => `${k}="${v}"`).join(' ');
+           return `<${tag} ${caStr}></${tag}>`;
+        }).join('');
+        
+        const svgString = `<svg xmlns="http://www.w3.org/2000/svg" ${attrsStr} viewBox="0 0 24 24">${childrenStr}</svg>`;
+        
+        return React.createElement('span', {
+           className: "inline-flex items-center justify-center cursor-pointer",
+           dangerouslySetInnerHTML: { __html: svgString },
+           ...props
+        });
+      };
+    }
+  });
+}
+
+
+
+/* --- theme.js --- */
+// Theme definitions
+const THEMES = {
+  light: {
+    bg: '#f9fafb',
+    surface: '#ffffff',
+    sidebar: '#1e2a4a',
+    sidebarText: '#e2e8f0',
+    text: '#111827',
+    textSecondary: '#6b7280',
+    border: '#e5e7eb',
+    cardShadow: '0 1px 3px rgba(0,0,0,0.12)'
+  },
+  dark: {
+    bg: '#0f172a',
+    surface: '#1e293b',
+    sidebar: '#0f172a',
+    sidebarText: '#cbd5e1',
+    text: '#f1f5f9',
+    textSecondary: '#94a3b8',
+    border: '#334155',
+    cardShadow: '0 1px 3px rgba(0,0,0,0.4)'
+  }
+};
+
+const ACCENT_COLORS = {
+  blue:   { primary: '#1a56db', light: '#eff6ff', hover: '#1e40af' },
+  purple: { primary: '#7e3af2', light: '#f5f3ff', hover: '#6d28d9' },
+  green:  { primary: '#057a55', light: '#f0fdf4', hover: '#065f46' },
+  red:    { primary: '#e02424', light: '#fef2f2', hover: '#b91c1c' },
+  orange: { primary: '#d97706', light: '#fffbeb', hover: '#b45309' },
+  midnight: { primary: '#334155', light: '#f8fafc', hover: '#1e293b' }
+};
+
+// Apply theme using CSS custom properties on :root
+function applyTheme(mode, accent) {
+  const safeMode = mode || 'light';
+  const safeAccent = accent || 'blue';
+  
+  const theme = THEMES[safeMode] || THEMES.light;
+  const accentColors = ACCENT_COLORS[safeAccent] || ACCENT_COLORS.blue;
+  const root = document.documentElement;
+  
+  Object.entries(theme).forEach(([key, value]) => {
+    root.style.setProperty(`--color-${key}`, value);
+  });
+  root.style.setProperty('--color-primary', accentColors.primary);
+  root.style.setProperty('--color-primary-light', accentColors.light);
+  root.style.setProperty('--color-primary-hover', accentColors.hover);
+  
+  // Apply dark class for Tailwind dark mode optionally
+  if (mode === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+}
+
+
+/* --- utils.js --- */
+const generateUUID = () => {
+  return typeof crypto !== 'undefined' && crypto.randomUUID 
+    ? crypto.randomUUID() 
+    : Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
+};
+
+const formatINR = (amount) => {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency', 
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(amount);
+};
+
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  const d = new Date(dateString);
+  return d.toLocaleDateString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  });
+};
+
+const cn = (...classes) => {
+  return classes.filter(Boolean).join(' ');
+};
+
+
+/* --- nlp.js --- */
+const categoryRules = {
+  "Food & Dining": {
+    keywords: ["zomato","swiggy","restaurant","cafe","food","lunch","dinner","breakfast","pizza","burger","hotel","dhaba","tea","coffee","chai","biryani","mess","canteen","grocery","vegetables","fruits","milk","bread","eggs"],
+    patterns: [/food/i, /eat/i, /meal/i, /kitchen/i, /bakery/i]
+  },
+  "Transportation": {
+    keywords: ["uber","ola","rapido","bus","metro","auto","petrol","diesel","fuel","train","flight","cab","taxi","parking","toll","bike","car service","rto"],
+    patterns: [/transport/i, /travel fare/i, /commute/i]
+  },
+  "Entertainment": {
+    keywords: ["netflix","hotstar","amazon prime","youtube","bookmyshow","cinema","movie","concert","spotify","gaming","playstation","xbox","pvr","inox","multiplex"],
+    patterns: [/entertainment/i, /subscription/i, /streaming/i]
+  },
+  "Education": {
+    keywords: ["college","university","school","tuition","course","udemy","coursera","books","stationery","exam","fee","library","workshop","training"],
+    patterns: [/education/i, /learning/i, /class/i]
+  },
+  "Healthcare": {
+    keywords: ["hospital","clinic","doctor","pharmacy","medicine","apollo","fortis","medplus","lab","test","dental","optical","health","insurance premium"],
+    patterns: [/medical/i, /health/i, /prescription/i]
+  },
+  "Shopping": {
+    keywords: ["amazon","flipkart","myntra","ajio","meesho","nykaa","clothes","shoes","shirt","jeans","dress","mobile","laptop","electronics","mall","market","reliance","dmart","bigbasket"],
+    patterns: [/shopping/i, /purchase/i, /order/i]
+  },
+  "Utilities": {
+    keywords: ["electricity","water","wifi","internet","airtel","jio","vodafone","bsnl","gas","lpg","bill","maintenance","society","recharge","dth","cable"],
+    patterns: [/utility/i, /bill/i, /charge/i]
+  },
+  "Rent": {
+    keywords: ["rent","landlord","house","flat","pg","accommodation","deposit","lease","room"],
+    patterns: [/rent/i, /housing/i]
+  },
+  "Personal Care": {
+    keywords: ["salon","barber","haircut","spa","gym","fitness","yoga","beauty","makeup","cosmetics","grooming"],
+    patterns: [/personal care/i, /grooming/i]
+  },
+  "Travel": {
+    keywords: ["irctc","makemytrip","goibibo","oyo","hotel booking","holiday","tour","trip","vacation","airport","luggage"],
+    patterns: [/travel/i, /trip/i, /vacation/i]
+  },
+  "Investment": {
+    keywords: ["gold","silver","mutual fund","sip","stocks","zerodha","groww","nse","bse","fd","fixed deposit","rd","recurring"],
+    patterns: [/invest/i, /portfolio/i]
+  },
+  "Income": {
+    keywords: ["salary","stipend","freelance","payment received","credit","bonus","reward","cashback","refund","dividend","interest earned"],
+    patterns: [/salary/i, /income/i, /earned/i]
+  }
+};
+
+function categorizeTransaction(description) {
+  if (!description) return { category: "Miscellaneous", confidence: 0, isAI: false };
+  const desc = description.toLowerCase();
+  let bestCategory = "Miscellaneous";
+  let bestScore = 0;
+  
+  for (const [category, rules] of Object.entries(categoryRules)) {
+    let score = 0;
+    for (const keyword of rules.keywords) {
+      if (desc.includes(keyword)) score += 10;
+    }
+    for (const pattern of rules.patterns) {
+      if (pattern.test(desc)) score += 5;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category;
+    }
+  }
+  
+  if (bestScore === 0) return { category: "Miscellaneous", confidence: 0, isAI: false };
+  const confidence = Math.min(95, 60 + bestScore * 2);
+  return { category: bestCategory, confidence, isAI: true };
+}
+
+
+/* --- data.js --- */
+const generateSampleData = () => {
+  const transactions = [];
+  const now = new Date();
+  
+  // Monthly salary (income)
+  for (let m = 0; m < 3; m++) {
+    const date = new Date(now.getFullYear(), now.getMonth()-m, 1);
+    transactions.push({
+      id: generateUUID(), type: 'income', amount: 45000,
+      description: 'Salary Credit - Company Pvt Ltd',
+      category: 'Income', date: date.toISOString().split('T')[0],
+      isAI: true
+    });
+  }
+  
+  const expenseTemplates = [
+    { desc: 'Zomato Order', amt: [150,600], cat: 'Food & Dining', freq: 8 },
+    { desc: 'Swiggy Delivery', amt: [200,500], cat: 'Food & Dining', freq: 6 },
+    { desc: 'Uber Ride', amt: [80,300], cat: 'Transportation', freq: 12 },
+    { desc: 'Metro Card Recharge', amt: [200,500], cat: 'Transportation', freq: 2 },
+    { desc: 'Netflix Subscription', amt: [199,199], cat: 'Entertainment', freq: 1 },
+    { desc: 'Airtel Postpaid Bill', amt: [599,599], cat: 'Utilities', freq: 1 },
+    { desc: 'Electricity Bill BESCOM', amt: [800,2000], cat: 'Utilities', freq: 1 },
+    { desc: 'Amazon Shopping', amt: [300,3000], cat: 'Shopping', freq: 4 },
+    { desc: 'Pharmacy - Apollo', amt: [150,800], cat: 'Healthcare', freq: 2 },
+    { desc: 'Gym Monthly Fee', amt: [1200,1200], cat: 'Personal Care', freq: 1 },
+    { desc: 'House Rent', amt: [12000,12000], cat: 'Rent', freq: 1 },
+    { desc: 'Udemy Course', amt: [399,599], cat: 'Education', freq: 1 },
+  ];
+
+  for (let m = 0; m < 3; m++) {
+    const month = now.getMonth() - m;
+    expenseTemplates.forEach(t => {
+      for (let i = 0; i < t.freq; i++) {
+        const randomDay = Math.floor(Math.random() * 28) + 1;
+        const date = new Date(now.getFullYear(), month, randomDay);
+        if (date > now) continue;
+        const amount = Math.floor(Math.random() * (t.amt[1] - t.amt[0] + 1)) + t.amt[0];
+        transactions.push({
+          id: generateUUID(), type: 'expense', amount,
+          description: t.desc,
+          category: t.cat, date: date.toISOString().split('T')[0],
+          isAI: true
+        });
+      }
+    });
+  }
+  
+  // Sort by date descending
+  transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const budgets = [
+    { id: generateUUID(), category: 'Food & Dining', limit: 8000, alertThreshold: 80 },
+    { id: generateUUID(), category: 'Transportation', limit: 3000, alertThreshold: 80 },
+    { id: generateUUID(), category: 'Entertainment', limit: 2000, alertThreshold: 80 },
+    { id: generateUUID(), category: 'Shopping', limit: 5000, alertThreshold: 80 },
+    { id: generateUUID(), category: 'Utilities', limit: 3500, alertThreshold: 80 },
+  ];
+
+  const portfolio = [
+    { id: generateUUID(), metal: 'Gold', quantity: 5, buyPrice: 9400, buyDate: new Date(now.getTime() - 30*24*60*60*1000).toISOString().split('T')[0] },
+    { id: generateUUID(), metal: 'Silver', quantity: 50, buyPrice: 92, buyDate: new Date(now.getTime() - 15*24*60*60*1000).toISOString().split('T')[0] }
+  ];
+  
+  const notifications = [
+    { id: generateUUID(), message: 'Welcome to SpendIQ!', type: 'info', date: now.toISOString(), read: false }
+  ];
+
+  return { transactions, budgets, portfolio, notifications };
+};
+
+
+/* --- context.js --- */
+const AppContext = React.createContext();
+
+const useApp = () => React.useContext(AppContext);
+
+const AppProvider = ({ children }) => {
+  const [user, setUser] = React.useState(null);
+  const [transactions, setTransactions] = React.useState([]);
+  const [budgets, setBudgets] = React.useState([]);
+  const [portfolio, setPortfolio] = React.useState([]);
+  const [notifications, setNotifications] = React.useState([]);
+  const [settings, setSettings] = React.useState({ 
+    themeMode: 'light', 
+    accentColor: 'blue', 
+    currency: 'INR', 
+    alertsEnabled: true,
+    anthropicKey: ''
+  });
+  
+  const [metalPrices, setMetalPrices] = React.useState({
+    gold: 9500, // per gram (95000 / 10g)
+    silver: 95 // per gram
+  });
+  
+  const [priceHistory, setPriceHistory] = React.useState({
+    gold: [], silver: []
+  });
+
+  // Init from localStorage
+  React.useEffect(() => {
+    const savedUser = localStorage.getItem('fintrack_user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+      initData(JSON.parse(savedUser).email === 'demo@fintrack.in');
+    }
+  }, []);
+
+  const initData = (isDemo = false) => {
+    const st = localStorage.getItem('fintrack_transactions');
+    if (!st && isDemo) {
+      const demo = generateSampleData();
+      setTransactions(demo.transactions);
+      setBudgets(demo.budgets);
+      setPortfolio(demo.portfolio);
+      setNotifications(demo.notifications);
+      saveAll(demo.transactions, demo.budgets, demo.portfolio, demo.notifications, settings);
+    } else {
+      if (st) setTransactions(JSON.parse(st));
+      const sb = localStorage.getItem('fintrack_budgets');
+      if (sb) setBudgets(JSON.parse(sb));
+      const sp = localStorage.getItem('fintrack_portfolio');
+      if (sp) setPortfolio(JSON.parse(sp));
+      const sn = localStorage.getItem('fintrack_notifications');
+      if (sn) setNotifications(JSON.parse(sn));
+      const ss = localStorage.getItem('fintrack_settings');
+      if (ss) setSettings(JSON.parse(ss));
+    }
+  };
+
+  const saveAll = (t = transactions, b = budgets, p = portfolio, n = notifications, s = settings) => {
+    localStorage.setItem('fintrack_transactions', JSON.stringify(t));
+    localStorage.setItem('fintrack_budgets', JSON.stringify(b));
+    localStorage.setItem('fintrack_portfolio', JSON.stringify(p));
+    localStorage.setItem('fintrack_notifications', JSON.stringify(n));
+    localStorage.setItem('fintrack_settings', JSON.stringify(s));
+  };
+
+  const login = (email, password) => {
+    const nUser = { id: generateUUID(), name: email.split('@')[0], email, token: btoa(email+Date.now()) };
+    setUser(nUser);
+    localStorage.setItem('fintrack_user', JSON.stringify(nUser));
+    initData(email === 'demo@fintrack.in');
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem('fintrack_user');
+    // We don't wipe data on logout so they can log back in and see it, 
+    // but in a real app it would be scoped by user ID.
+  };
+
+  // Simulated live metal prices
+  React.useEffect(() => {
+    const simulateMetals = () => {
+      setMetalPrices(prev => {
+        // Drift ±0.15% max
+        const goldDrift = 1 + (Math.random() * 0.003 - 0.0015);
+        const silverDrift = 1 + (Math.random() * 0.003 - 0.0015);
+        return {
+          gold: parseFloat((prev.gold * goldDrift).toFixed(2)),
+          silver: parseFloat((prev.silver * silverDrift).toFixed(2))
+        };
+      });
+    };
+    
+    // Generate 30 days history
+    const history = { gold: [], silver: [] };
+    let curG = 9500; let curS = 95;
+    const now = new Date();
+    for(let i=30; i>=0; i--) {
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      history.gold.push({ date: dateStr, price: curG });
+      history.silver.push({ date: dateStr, price: curS });
+      curG = parseFloat((curG * (1 + (Math.random() * 0.02 - 0.01))).toFixed(2));
+      curS = parseFloat((curS * (1 + (Math.random() * 0.02 - 0.01))).toFixed(2));
+    }
+    setPriceHistory(history);
+    setMetalPrices({ gold: curG, silver: curS });
+
+    const interval = setInterval(simulateMetals, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  React.useEffect(() => {
+    const mode = settings.themeMode === 'system'
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : settings.themeMode;
+    applyTheme(mode, settings.accentColor || 'blue');
+  }, [settings.themeMode, settings.accentColor]);
+
+  // Financial Context Builder
+  const getFinancialContext = () => {
+    const now = new Date();
+    const thisMonth = transactions.filter(t =>
+      new Date(t.date).getMonth() === now.getMonth() &&
+      new Date(t.date).getFullYear() === now.getFullYear()
+    );
+
+    const totalIncome = thisMonth.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+    const totalExpense = thisMonth.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+    const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome * 100).toFixed(1) : 0;
+
+    const byCategory = {};
+    thisMonth.filter(t => t.type === 'expense').forEach(t => {
+      byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
+    });
+    const categoryText = Object.entries(byCategory)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, amt]) => `  - ${cat}: ₹${amt.toLocaleString('en-IN')}`)
+      .join('\n');
+
+    const budgetText = budgets.map(b => {
+      const spent = byCategory[b.category] || 0;
+      const pct = ((spent / b.limit) * 100).toFixed(0);
+      return `  - ${b.category}: ₹${spent.toLocaleString('en-IN')} / ₹${b.limit.toLocaleString('en-IN')} (${pct}%)`;
+    }).join('\n');
+
+    const portfolioText = portfolio.map(h => {
+      const currentPrice = h.metal === 'Gold' ? metalPrices.gold : metalPrices.silver;
+      const currentValue = h.quantity * currentPrice;
+      const invested = h.quantity * h.buyPrice;
+      const pnl = currentValue - invested;
+      const pnlPct = ((pnl / invested) * 100).toFixed(2);
+      return `  - ${h.metal}: ${h.quantity}g | Bought @ ₹${h.buyPrice}/g | Current @ ₹${currentPrice}/g | P&L: ₹${pnl.toFixed(0)} (${pnlPct}%)`;
+    }).join('\n');
+
+    return `
+📅 Month: ${now.toLocaleString('en-IN', { month: 'long', year: 'numeric' })}
+💰 Income: ₹${totalIncome.toLocaleString('en-IN')}
+💸 Expenses: ₹${totalExpense.toLocaleString('en-IN')}
+💹 Savings Rate: ${savingsRate}%
+
+📊 SPENDING BY CATEGORY THIS MONTH:
+${categoryText || '  No expenses recorded'}
+
+🎯 BUDGET STATUS:
+${budgetText || '  No budgets set'}
+
+🥇 INVESTMENT PORTFOLIO:
+${portfolioText || '  No holdings'}
+
+📈 LIVE METAL PRICES:
+  - Gold: ₹${(metalPrices.gold * 10).toLocaleString('en-IN')}/10g (₹${metalPrices.gold}/g)
+  - Silver: ₹${metalPrices.silver}/g
+`;
+  };
+
+  const clearAllData = () => {
+    setTransactions([]);
+    setBudgets([]);
+    setPortfolio([]);
+    setNotifications([]);
+    saveAll([], [], [], [], settings);
+  };
+
+  const value = {
+    user, login, logout,
+    transactions, setTransactions,
+    budgets, setBudgets,
+    portfolio, setPortfolio,
+    notifications, setNotifications,
+    settings, setSettings,
+    metalPrices, priceHistory,
+    saveAll, getFinancialContext, clearAllData
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};
+
+
+/* --- ui.js --- */
+const Card = ({ children, className = '' }) => (
+  <div className={`custom-card p-6 ${className}`}>{children}</div>
+);
+
+const Button = ({ children, variant = 'primary', className = '', ...props }) => {
+  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 flex items-center justify-center gap-2";
+  const variants = {
+    primary: "bg-primary text-white hover:bg-blue-700",
+    secondary: "bg-secondary text-white hover:bg-purple-700",
+    outline: "border border-border text-text hover:bg-bg",
+    danger: "bg-danger text-white hover:bg-red-700",
+    success: "bg-success text-white hover:bg-green-700",
+    ghost: "text-textSecondary hover:bg-gray-100"
+  };
+  return (
+    <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
+      {children}
+    </button>
+  );
+};
+
+const Input = React.forwardRef(({ label, error, className = '', ...props }, ref) => (
+  <div className="flex flex-col gap-1 w-full relative">
+    {label && <label className="text-sm font-medium text-text">{label}</label>}
+    <input 
+      ref={ref}
+      className={`border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${error ? 'border-danger' : 'border-border'} ${className}`} 
+      {...props} 
+    />
+    {error && <span className="text-xs text-danger absolute -bottom-5 left-0">{error}</span>}
+  </div>
+));
+
+const Select = ({ label, options, error, className = '', ...props }) => (
+  <div className="flex flex-col gap-1 w-full relative">
+    {label && <label className="text-sm font-medium text-text">{label}</label>}
+    <select 
+      className={`border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-surface ${error ? 'border-danger' : 'border-border'} ${className}`} 
+      {...props}
+    >
+      <option value="" disabled>Select an option</option>
+      {options.map(o => (
+        <option key={o.value || o} value={o.value || o}>{o.label || o}</option>
+      ))}
+    </select>
+    {error && <span className="text-xs text-danger absolute -bottom-5 left-0">{error}</span>}
+  </div>
+);
+
+const Modal = ({ isOpen, onClose, title, children }) => {
+  if (!isOpen) return null;
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose}></div>
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg relative z-10 flex flex-col max-h-[90vh]">
+        <div className="flex items-center justify-between p-6 border-b shrink-0">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full text-textSecondary">
+            <lucide.X size={20} />
+          </button>
+        </div>
+        <div className="p-6 overflow-y-auto">
+          {children}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+
+/* --- layout.js --- */
+
+const Sidebar = () => {
+  const { user } = useApp();
+  const location = useLocation();
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard', icon: lucide.Home },
+    { path: '/transactions', label: 'Transactions', icon: lucide.List },
+    { path: '/budget', label: 'Budget', icon: lucide.Target },
+    { path: '/investments', label: 'Investments', icon: lucide.TrendingUp },
+    { path: '/analytics', label: 'Analytics', icon: lucide.PieChart },
+    { path: '/reports', label: 'Reports', icon: lucide.FileText },
+    { path: '/settings', label: 'Settings', icon: lucide.Settings },
+  ];
+
+  return (
+    <div className="w-64 bg-sidebar text-sidebarText flex flex-col h-full fixed left-0 top-0 hidden md:flex z-20 transition-colors">
+      <div className="h-16 flex items-center px-6 border-b border-sidebarText/10 font-bold text-xl gap-3">
+        <lucide.Wallet size={24} className="text-primary" />
+        SpendIQ
+      </div>
+      <nav className="flex-1 py-6 flex flex-col gap-1 px-3">
+        {navItems.map(item => {
+          const active = location.pathname.startsWith(item.path);
+          return (
+            <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${active ? 'bg-primary text-white' : 'hover:bg-sidebarText/5'}`}>
+              <item.icon size={18} />
+              <span className="font-medium">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="p-4 border-t border-sidebarText/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">
+            {user?.name?.charAt(0) || 'U'}
+          </div>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-medium text-sidebarText truncate">{user?.name || 'User'}</span>
+            <span className="text-xs text-sidebarText/70">Pro Account</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Header = () => {
+  const { logout, notifications } = useApp();
+  const unread = notifications.filter(n => !n.read).length;
+  
+  return (
+    <header className="h-16 bg-surface border-b flex items-center justify-between px-6 sticky top-0 z-10 w-full">
+      <div className="flex items-center md:hidden gap-3 font-bold text-xl">
+        <lucide.Wallet size={24} className="text-primary" />
+        SpendIQ
+      </div>
+      <div className="hidden md:flex flex-1"></div>
+      <div className="flex items-center gap-4">
+        <button className="relative p-2 text-textSecondary hover:bg-gray-100 rounded-full">
+          <lucide.Bell size={20} />
+          {unread > 0 && (
+            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-danger rounded-full border-2 border-white"></span>
+          )}
+        </button>
+        <div className="h-8 w-px bg-gray-200 mx-1"></div>
+        <button onClick={logout} className="flex items-center gap-2 text-sm font-medium text-textSecondary hover:text-text">
+          <lucide.LogOut size={18} />
+          <span className="hidden sm:inline">Logout</span>
+        </button>
+      </div>
+    </header>
+  );
+};
+
+const Layout = ({ children }) => {
+  const { user } = useApp();
+  if (!user) return <ReactRouterDOM.Navigate to="/login" replace />;
+  
+  return (
+    <div className="min-h-screen bg-background flex">
+      <Sidebar />
+      <div className="flex-1 flex flex-col md:ml-64 w-full">
+        <Header />
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+          {children}
+        </main>
+      </div>
+      <Chatbot />
+    </div>
+  );
+};
+
+
+/* --- Chatbot.js --- */
+const Chatbot = () => {
+  const { settings, getFinancialContext } = useApp();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [messages, setMessages] = React.useState([]);
+  const [input, setInput] = React.useState('');
+  const [isTyping, setIsTyping] = React.useState(false);
+  const messagesEndRef = React.useRef(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  React.useEffect(() => {
+    scrollToBottom();
+  }, [messages, isTyping, isOpen]);
+
+  const suggestPrompts = [
+    "Where am I overspending this month?",
+    "Is now a good time to buy gold?",
+    "How is my investment portfolio performing?",
+    "How can I improve my savings rate?",
+    "Which budget am I closest to exceeding?"
+  ];
+
+  const handleSend = async (text) => {
+    if (!text.trim()) return;
+    
+    const newMsg = { role: 'user', content: text };
+    const updatedMessages = [...messages, newMsg];
+    setMessages(updatedMessages);
+    setInput('');
+    setIsTyping(true);
+
+    if (!settings.anthropicKey) {
+       setTimeout(() => {
+         setMessages([...updatedMessages, { 
+           role: 'assistant', 
+           content: "Please add your Anthropic API key in Settings → AI Advisor to enable the chatbot."
+         }]);
+         setIsTyping(false);
+       }, 800);
+       return;
+    }
+
+    try {
+      const systemPrompt = `You are FinAdvisor AI, a personal financial advisor embedded in SpendIQ — an AI-driven personal finance tracker for Indian users.
+
+You have access to the user's complete financial data:
+
+CURRENT FINANCIAL SNAPSHOT:
+${getFinancialContext()}
+
+Your role:
+1. SPENDING ADVICE: Analyze spending patterns and suggest specific categories where the user can cut back. Reference actual numbers from their data.
+2. GOLD & SILVER TIMING: Advise on the best time to buy/sell precious metals based on current simulated prices, historical trends, and general market principles (e.g., buy on dips, festive season demand in India typically pushes prices up around Oct-Nov).
+3. P&L ANALYSIS: Explain investment performance clearly — which holdings are profitable, which are at a loss, and what actions to consider.
+4. BUDGET COACHING: Warn about budgets near their limit and suggest reallocation strategies.
+5. SAVINGS OPTIMIZATION: Calculate potential savings if spending is reduced in specific categories.
+
+RULES:
+- Always respond in a friendly, conversational tone
+- Use Indian Rupee symbol ₹ for all amounts
+- Use Indian numbering (lakhs, not millions)
+- Keep responses concise (under 150 words unless complex analysis needed)
+- Be specific — reference the user's actual data, not generic advice
+- Add relevant emojis for readability
+- Never make up data not provided in the context`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": settings.anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: "claude-3-5-sonnet-20240620", // using standard 3.5 sonnet
+          max_tokens: 1000,
+          system: systemPrompt,
+          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error?.message || "API Error");
+      }
+
+      const data = await response.json();
+      setMessages([...updatedMessages, { role: 'assistant', content: data.content[0].text }]);
+
+    } catch (error) {
+      setMessages([...updatedMessages, { role: 'assistant', content: `⚠️ Error: ${error.message}` }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+      {/* Chat Panel */}
+      {isOpen && (
+        <div className="bg-surface border border-border rounded-2xl shadow-2xl w-[380px] h-[520px] mb-4 flex flex-col overflow-hidden animate-slide-up transform origin-bottom border-border">
+          
+          <div className="bg-primary p-4 text-white flex justify-between items-center">
+             <div>
+               <h3 className="font-bold font-lg flex items-center gap-2"><lucide.Bot size={20} /> 💰 FinAdvisor AI</h3>
+               <p className="text-xs text-primary-light opacity-90">Powered by Claude</p>
+             </div>
+             <button onClick={() => setIsOpen(false)} className="hover:bg-primary-hover p-1.5 rounded-full transition-colors">
+               <lucide.X size={18} />
+             </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-bg">
+            {messages.length === 0 ? (
+              <div className="flex flex-col gap-2 mt-2">
+                 <p className="text-sm text-textSecondary text-center mb-2">How can I help you optimize your finances today?</p>
+                 {suggestPrompts.map((p, i) => (
+                   <button key={i} onClick={() => handleSend(p)} className="text-left text-sm bg-surface border border-border hover:border-primary text-text px-3 py-2 rounded-xl transition-colors shadow-sm">
+                     {p}
+                   </button>
+                 ))}
+              </div>
+            ) : (
+              messages.map((m, i) => (
+                <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-4 py-2 ${m.role === 'user' ? 'bg-primary text-white rounded-br-none' : 'bg-surface border border-border text-text rounded-bl-none shadow-sm'}`}>
+                    <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                  </div>
+                </div>
+              ))
+            )}
+            
+            {isTyping && (
+              <div className="flex items-start">
+                <div className="bg-surface border border-border rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></span>
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></span>
+                    <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <div className="p-3 border-t border-border bg-surface">
+            <form onSubmit={e => { e.preventDefault(); handleSend(input); }} className="flex gap-2">
+              <input 
+                type="text" 
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="Ask about your finances..." 
+                disabled={isTyping}
+                className="flex-1 bg-bg border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-primary disabled:opacity-50"
+              />
+              <button 
+                type="submit" 
+                disabled={!input.trim() || isTyping}
+                className="bg-primary text-white p-2 rounded-xl hover:bg-primary-hover disabled:opacity-50 transition-colors"
+               >
+                <lucide.Send size={18} />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Button */}
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-14 h-14 bg-primary text-white rounded-full shadow-xl flex items-center justify-center hover:bg-primary-hover hover:scale-105 transition-all relative"
+      >
+        {isOpen ? <lucide.X size={24} /> : <lucide.Bot size={28} />}
+        {!isOpen && <span className="absolute top-0 right-0 w-3 h-3 bg-green-400 border-2 border-white rounded-full animate-pulse"></span>}
+      </button>
+
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes slide-up { from { opacity: 0; transform: translateY(20px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .animate-slide-up { animation: slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+      `}} />
+    </div>
+  );
+};
+
+
+/* --- Login.js --- */
+
+const Login = () => {
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const { login, user } = useApp();
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (user) navigate('/dashboard', { replace: true });
+  }, [user, navigate]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (email && password) {
+      login(email, password);
+    }
+  };
+
+  const handleDemo = () => {
+    setEmail('demo@fintrack.in');
+    setPassword('demo123');
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-bg py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="max-w-md w-full space-y-8 p-10">
+        <div>
+          <div className="flex justify-center text-primary mb-4">
+            <lucide.Wallet size={48} />
+          </div>
+          <h2 className="text-center text-3xl font-extrabold text-text">
+            Sign in to SpendIQ
+          </h2>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md space-y-4">
+            <Input 
+              label="Email Address" 
+              type="email" 
+              required 
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com" 
+            />
+            <Input 
+              label="Password" 
+              type="password" 
+              required 
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="••••••••" 
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 text-primary focus:ring-primary border-border rounded" />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-text">
+                Remember me
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <Button type="submit" className="w-full">Sign in</Button>
+          </div>
+          
+          <div className="mt-4 text-center">
+            <button type="button" onClick={handleDemo} className="text-sm font-medium text-primary hover:text-blue-500">
+              Use Demo Account
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+};
+
+
+
+
+/* --- Register.js --- */
+// To make sure build script doesn't fail on missing
+const Register = () => {
+    return <div className="text-center py-20"><p>Register Page</p><ReactRouterDOM.Link to="/login" className="text-primary hover:underline">Go to Login</ReactRouterDOM.Link></div>;
+};
+
+
+/* --- Dashboard.js --- */
+const Dashboard = () => {
+  const { transactions, user, metalPrices, budgets } = useApp();
+  
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  
+  const thisMonthTx = transactions.filter(t => {
+    const d = new Date(t.date);
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const totalIncome = thisMonthTx.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpense = thisMonthTx.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const netSavings = totalIncome - totalExpense;
+  const savingsRate = totalIncome > 0 ? ((netSavings / totalIncome) * 100).toFixed(1) : 0;
+
+  // Chart data
+  const expensesByCategory = thisMonthTx.filter(t => t.type === 'expense').reduce((acc, t) => {
+    acc[t.category] = (acc[t.category] || 0) + t.amount;
+    return acc;
+  }, {});
+  
+  const COLORS = ['#1a56db', '#7e3af2', '#057a55', '#e02424', '#c27803', '#0369a1', '#be185d', '#0f766e'];
+  const pieData = Object.keys(expensesByCategory).map(key => ({
+    name: key, value: expensesByCategory[key]
+  })).sort((a,b) => b.value - a.value);
+
+  // 6 months bar chart
+  const barData = [];
+  for(let i=5; i>=0; i--) {
+    let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    let m = d.getMonth(); let y = d.getFullYear();
+    let label = d.toLocaleString('default', { month: 'short' });
+    let inc = transactions.filter(t => t.type === 'income' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s,t) => s+t.amount, 0);
+    let exp = transactions.filter(t => t.type === 'expense' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s,t) => s+t.amount, 0);
+    barData.push({ name: label, Income: inc, Expense: exp });
+  }
+
+
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text');
+  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--color-surface');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-text">Welcome back, {user?.name}</h1>
+      </div>
+      
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-textSecondary">Total Income (This Month)</span>
+          <span className="text-2xl font-bold text-success">{formatINR(totalIncome)}</span>
+        </Card>
+        <Card className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-textSecondary">Total Expenses (This Month)</span>
+          <span className="text-2xl font-bold text-danger">{formatINR(totalExpense)}</span>
+        </Card>
+        <Card className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-textSecondary">Net Savings</span>
+          <span className="text-2xl font-bold text-primary">{formatINR(netSavings)}</span>
+        </Card>
+        <Card className="flex flex-col gap-2">
+          <span className="text-sm font-medium text-textSecondary">Savings Rate</span>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-secondary">{savingsRate}%</span>
+            <div className="flex-1 bg-gray-200 rounded-full h-2">
+               <div className="bg-secondary h-2 rounded-full" style={{ width: `${Math.min(100, Math.max(0, savingsRate))}%` }}></div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Charts */}
+        <Card className="lg:col-span-2 flex flex-col">
+          <h3 className="font-semibold text-lg mb-4">Income vs Expense (6 Months)</h3>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} stroke={textColor} />
+                <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `₹${val/1000}k`} stroke={textColor} />
+                <Tooltip cursor={{fill: '#f3f4f6'}} formatter={(value) => formatINR(value)} contentStyle={{ backgroundColor: surfaceColor, borderColor: 'var(--color-border)', color: textColor }} />
+                <Legend wrapperStyle={{ color: textColor }} />
+                <Bar dataKey="Income" fill="#057a55" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Expense" fill="#e02424" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col">
+          <h3 className="font-semibold text-lg mb-4">Expenses by Category</h3>
+          <div className="h-64 w-full relative">
+             {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                    {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: surfaceColor, borderColor: 'var(--color-border)', color: textColor, borderRadius: '8px' }} itemStyle={{ color: textColor }} formatter={(value) => formatINR(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+             ) : (
+               <div className="flex h-full items-center justify-center text-textSecondary">No expenses this month</div>
+             )}
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         {/* Live Metal Prices */}
+         <div className="col-span-1 space-y-4">
+            <Card className="bg-gradient-to-br from-yellow-50 to-amber-100 border border-amber-200">
+               <div className="flex items-center justify-between mb-2">
+                 <span className="font-semibold text-amber-800 flex items-center gap-2"><lucide.Coins size={18} /> Gold Base</span>
+                 <span className="text-xs text-amber-600 font-medium">Live</span>
+               </div>
+               <div className="text-2xl font-bold text-amber-900">{formatINR(metalPrices.gold * 10)} / 10g</div>
+               <div className="text-sm text-green-600 flex items-center mt-1"><lucide.TrendingUp size={14} className="mr-1"/> +0.15% <span className="text-textSecondary ml-2">Simulated</span></div>
+            </Card>
+            <Card className="bg-gradient-to-br from-gray-50 to-slate-100 border border-border">
+               <div className="flex items-center justify-between mb-2">
+                 <span className="font-semibold text-slate-700 flex items-center gap-2"><lucide.Circle size={18} /> Silver Base</span>
+                 <span className="text-xs text-slate-500 font-medium">Live</span>
+               </div>
+               <div className="text-2xl font-bold text-slate-800">{formatINR(metalPrices.silver)} / 1g</div>
+               <div className="text-sm text-green-600 flex items-center mt-1"><lucide.TrendingUp size={14} className="mr-1"/> +0.12% <span className="text-textSecondary ml-2">Simulated</span></div>
+            </Card>
+            
+            {/* Quick Budgets */}
+            <Card className="flex flex-col gap-4">
+               <h3 className="font-semibold text-lg">Budget Status</h3>
+               {budgets.slice(0,3).map(b => {
+                 const spent = thisMonthTx.filter(t => t.type === 'expense' && t.category === b.category).reduce((s,t)=>s+t.amount,0);
+                 const pct = Math.min(100, Math.round((spent/b.limit)*100));
+                 return (
+                   <div key={b.id} className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium">{b.category}</span>
+                        <span className="text-textSecondary">{formatINR(spent)} / {formatINR(b.limit)}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${pct > 90 ? 'bg-danger' : pct > 75 ? 'bg-warning' : 'bg-success'}`} style={{width: `${pct}%`}}></div>
+                      </div>
+                   </div>
+                 )
+               })}
+            </Card>
+         </div>
+
+         {/* Recent Transactions */}
+         <Card className="lg:col-span-2">
+           <div className="flex justify-between items-center mb-4">
+             <h3 className="font-semibold text-lg">Recent Transactions</h3>
+             <ReactRouterDOM.Link to="/transactions" className="text-sm text-primary hover:underline font-medium">View All</ReactRouterDOM.Link>
+           </div>
+           <div className="space-y-3">
+              {transactions.slice(0, 7).map(t => (
+                <div key={t.id} className="flex items-center justify-between p-3 hover:bg-bg rounded-lg transition-colors border border-transparent hover:border-border">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-full flex flex-shrink-0 items-center justify-center ${t.type === 'income' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                      {t.type === 'income' ? <lucide.ArrowDownLeft size={20} /> : <lucide.ArrowUpRight size={20} />}
+                    </div>
+                    <div>
+                      <div className="font-medium text-text flex items-center gap-2">
+                        {t.description}
+                        {t.isAI && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold">AI</span>}
+                      </div>
+                      <div className="text-xs text-textSecondary flex items-center gap-1"><lucide.Tag size={12}/> {t.category} • {formatDate(t.date)}</div>
+                    </div>
+                  </div>
+                  <div className={`font-semibold ${t.type === 'income' ? 'text-success' : 'text-text'}`}>
+                    {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                  </div>
+                </div>
+              ))}
+           </div>
+         </Card>
+      </div>
+    </div>
+  );
+};
+
+
+/* --- Transactions.js --- */
+const Transactions = () => {
+  const { transactions, setTransactions, saveAll } = useApp();
+  const [searchTerm, setSearchTerm] = React.useState('');
+  const [filterType, setFilterType] = React.useState('all');
+  const [page, setPage] = React.useState(1);
+  const itemsPerPage = 20;
+
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [editId, setEditId] = React.useState(null);
+  
+  // Form State
+  const [type, setType] = React.useState('expense');
+  const [amount, setAmount] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [date, setDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [category, setCategory] = React.useState('Miscellaneous');
+  const [aiConfidence, setAiConfidence] = React.useState(0);
+  const [isAiPred, setIsAiPred] = React.useState(false);
+
+  // Filter
+  const filtered = React.useMemo(() => {
+    return transactions.filter(t => {
+      const matchSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchType = filterType === 'all' || t.type === filterType;
+      return matchSearch && matchType;
+    });
+  }, [transactions, searchTerm, filterType]);
+
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const paginated = filtered.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+  const handleDescBlur = () => {
+    if (description.length > 2 && !editId) {
+      const { category: cat, confidence, isAI } = categorizeTransaction(description);
+      setCategory(cat);
+      setAiConfidence(confidence);
+      setIsAiPred(isAI);
+    }
+  };
+
+  const openAdd = () => {
+    setEditId(null);
+    setType('expense'); setAmount(''); setDescription(''); setDate(new Date().toISOString().split('T')[0]);
+    setCategory('Miscellaneous'); setAiConfidence(0); setIsAiPred(false);
+    setIsModalOpen(true);
+  };
+
+  const openEdit = (t) => {
+    setEditId(t.id);
+    setType(t.type); setAmount(t.amount.toString()); setDescription(t.description);
+    setDate(t.date); setCategory(t.category); setAiConfidence(0); setIsAiPred(t.isAI);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id) => {
+    if (confirm('Delete this transaction?')) {
+      const nt = transactions.filter(t => t.id !== id);
+      setTransactions(nt);
+      saveAll(nt);
+    }
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    const newTx = {
+      id: editId || generateUUID(),
+      type, amount: parseFloat(amount), description, date, category, isAI: isAiPred && !editId
+    };
+    
+    let nt;
+    if (editId) {
+      nt = transactions.map(t => t.id === editId ? newTx : t);
+    } else {
+      nt = [newTx, ...transactions];
+    }
+    // Sort
+    nt.sort((a,b) => new Date(b.date) - new Date(a.date));
+    setTransactions(nt);
+    saveAll(nt);
+    setIsModalOpen(false);
+  };
+
+  const triggerCSV = () => {
+    document.getElementById('csv-upload').click();
+  };
+
+  const handleCSV = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function(results) {
+        const parsed = results.data.filter(r => r.amount && r.date).map(r => {
+           const isInc = (r.type || '').toLowerCase() === 'income';
+           const amt = Math.abs(parseFloat(r.amount));
+           const desc = r.description || 'Imported Transaction';
+           const { category: cat, isAI } = categorizeTransaction(desc);
+           return {
+             id: generateUUID(),
+             type: isInc ? 'income' : 'expense',
+             amount: amt,
+             description: desc,
+             date: new Date(r.date).toISOString().split('T')[0],
+             category: cat,
+             isAI
+           }
+        });
+        const nt = [...parsed, ...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+        setTransactions(nt);
+        saveAll(nt);
+        alert(`Imported ${parsed.length} transactions successfully!`);
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-2xl font-bold text-text">Transactions</h1>
+        <div className="flex items-center gap-2">
+          <input type="file" id="csv-upload" className="hidden" accept=".csv" onChange={handleCSV} />
+          <Button variant="outline" onClick={triggerCSV}><lucide.Upload size={16}/> Import CSV</Button>
+          <Button onClick={openAdd}><lucide.Plus size={16}/> Add New</Button>
+        </div>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4 bg-bg/50">
+          <div className="flex-1 relative">
+            <lucide.Search className="absolute left-3 top-2.5 text-textSecondary" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search description..." 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border rounded-lg w-full focus:ring-2 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <Select 
+               value={filterType}
+               onChange={e => setFilterType(e.target.value)}
+               options={[
+                 {label: 'All Types', value: 'all'},
+                 {label: 'Income Only', value: 'income'},
+                 {label: 'Expense Only', value: 'expense'}
+               ]}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-bg border-b text-sm text-textSecondary">
+                <th className="p-4 font-medium">Date</th>
+                <th className="p-4 font-medium">Description</th>
+                <th className="p-4 font-medium">Category</th>
+                <th className="p-4 font-medium text-right">Amount</th>
+                <th className="p-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {paginated.length > 0 ? paginated.map(t => (
+                <tr key={t.id} className="hover:bg-bg/50 transition-colors">
+                  <td className="p-4 text-sm text-textSecondary whitespace-nowrap">{formatDate(t.date)}</td>
+                  <td className="p-4">
+                    <div className="font-medium text-text flex items-center gap-2">
+                       {t.description}
+                       {t.isAI && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-bold" title="Auto-categorized by AI">AI</span>}
+                    </div>
+                  </td>
+                  <td className="p-4 text-sm text-textSecondary">{t.category}</td>
+                  <td className={`p-4 text-right font-medium whitespace-nowrap ${t.type === 'income' ? 'text-success' : 'text-text'}`}>
+                    {t.type === 'income' ? '+' : '-'}{formatINR(t.amount)}
+                  </td>
+                  <td className="p-4 flex items-center justify-end gap-2">
+                    <button onClick={() => openEdit(t)} className="p-1.5 text-textSecondary hover:text-primary rounded-md hover:bg-blue-50"><lucide.Edit2 size={16}/></button>
+                    <button onClick={() => handleDelete(t.id)} className="p-1.5 text-textSecondary hover:text-danger rounded-md hover:bg-red-50"><lucide.Trash2 size={16}/></button>
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                   <td colSpan="5" className="p-8 text-center text-textSecondary">No transactions found</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {totalPages > 1 && (
+          <div className="p-4 border-t flex items-center justify-between bg-bg/50">
+            <span className="text-sm text-textSecondary">Showing {(page-1)*itemsPerPage + 1} to {Math.min(page*itemsPerPage, filtered.length)} of {filtered.length} entries</span>
+            <div className="flex items-center gap-1">
+              <button disabled={page === 1} onClick={() => setPage(p=>p-1)} className="p-1.5 rounded-md border bg-surface disabled:opacity-50"><lucide.ChevronLeft size={16}/></button>
+              <span className="px-3 text-sm font-medium">{page} / {totalPages}</span>
+              <button disabled={page === totalPages} onClick={() => setPage(p=>p+1)} className="p-1.5 rounded-md border bg-surface disabled:opacity-50"><lucide.ChevronRight size={16}/></button>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editId ? "Edit Transaction" : "Add Transaction"}>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium text-text block mb-1">Type</label>
+              <div className="flex rounded-md shadow-sm">
+                <button type="button" onClick={()=>setType('expense')} className={`flex-1 py-2 text-sm font-medium rounded-l-md border ${type === 'expense' ? 'bg-red-50 border-red-200 text-red-700 z-10' : 'bg-surface border-border text-text'}`}>Expense</button>
+                <button type="button" onClick={()=>setType('income')} className={`flex-1 py-2 text-sm font-medium rounded-r-md border -ml-px ${type === 'income' ? 'bg-green-50 border-green-200 text-green-700 z-10' : 'bg-surface border-border text-text'}`}>Income</button>
+              </div>
+            </div>
+            <Input 
+              label="Amount (₹)" 
+              type="number" 
+              required 
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+            />
+          </div>
+          
+          <Input 
+            label="Description" 
+            type="text" 
+            required 
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            onBlur={handleDescBlur}
+            placeholder="e.g. Swiggy Lunch"
+          />
+
+          <div className="flex gap-4">
+            <Input 
+              label="Date" 
+              type="date" 
+              required 
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
+            <div className="flex-1 relative">
+              <Select 
+                label="Category"
+                value={category}
+                onChange={e => {setCategory(e.target.value); setIsAiPred(false);}}
+                options={[
+                  "Food & Dining", "Transportation", "Entertainment", "Education", 
+                  "Healthcare", "Shopping", "Utilities", "Rent", "Personal Care", 
+                  "Travel", "Investment", "Income", "Miscellaneous"
+                ]}
+              />
+              {aiConfidence > 0 && isAiPred && (
+                 <div className="absolute top-0 right-0 text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-bl-md rounded-tr-md flex items-center gap-1">
+                   <lucide.Sparkles size={10} /> AI Predicted ({Math.round(aiConfidence)}%)
+                 </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="pt-4 border-t flex justify-end gap-3">
+             <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+             <Button type="submit">{editId ? 'Update' : 'Save'} Transaction</Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+
+/* --- Budgets.js --- */
+const Budgets = () => {
+  const { budgets, setBudgets, transactions, saveAll } = useApp();
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [editId, setEditId] = React.useState(null);
+  
+  const [category, setCategory] = React.useState('Miscellaneous');
+  const [limit, setLimit] = React.useState('');
+  const [alertThreshold, setAlertThreshold] = React.useState('80');
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const thisMonthExpenses = transactions.filter(t => {
+    const d = new Date(t.date);
+    return t.type === 'expense' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  const getDayOfMonth = () => Math.max(1, new Date().getDate());
+  const getDaysInMonth = () => new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  const openAdd = () => {
+    setEditId(null);
+    setCategory('Miscellaneous'); setLimit(''); setAlertThreshold('80');
+    setIsModalOpen(true);
+  };
+  
+  const openEdit = (b) => {
+    setEditId(b.id);
+    setCategory(b.category); setLimit(b.limit.toString()); setAlertThreshold(b.alertThreshold.toString());
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = (id) => {
+    if (confirm('Delete this budget?')) {
+      const nb = budgets.filter(b => b.id !== id);
+      setBudgets(nb);
+      saveAll(transactions, nb);
+    }
+  };
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    const nb = {
+      id: editId || generateUUID(),
+      category, limit: parseFloat(limit), alertThreshold: parseFloat(alertThreshold)
+    };
+    let newBudgets;
+    if (editId) {
+      newBudgets = budgets.map(b => b.id === editId ? nb : b);
+    } else {
+      newBudgets = [...budgets, nb];
+    }
+    setBudgets(newBudgets);
+    saveAll(transactions, newBudgets);
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-text">Monthly Budgets</h1>
+        <Button onClick={openAdd}><lucide.Plus size={16}/> Add Budget</Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {budgets.length === 0 ? (
+           <Card className="col-span-full py-12 flex flex-col items-center justify-center text-textSecondary">
+             <lucide.Target size={48} className="text-gray-300 mb-4" />
+             <p>No budgets set up yet.</p>
+             <Button variant="outline" className="mt-4" onClick={openAdd}>Create your first budget</Button>
+           </Card>
+        ) : budgets.map(b => {
+          const spent = thisMonthExpenses.filter(t => t.category === b.category).reduce((s,t)=>s+t.amount, 0);
+          const remaining = Math.max(0, b.limit - spent);
+          const pct = Math.min(100, Math.round((spent/b.limit)*100));
+          const colorClass = pct >= 90 ? 'bg-danger text-danger' : pct >= b.alertThreshold ? 'bg-warning text-warning' : 'bg-success text-success';
+          const bgClass = colorClass.split(' ')[0];
+          const textClass = colorClass.split(' ')[1];
+          
+          const dailyRate = spent / getDayOfMonth();
+          const projected = Math.round(dailyRate * getDaysInMonth());
+
+          return (
+            <Card key={b.id} className="flex flex-col gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="font-semibold text-lg flex items-center gap-2">
+                    {b.category}
+                    {pct >= b.alertThreshold && <lucide.AlertTriangle size={16} className="text-warning" title={`Over ${b.alertThreshold}% limit`} />}
+                  </div>
+                  <div className="text-sm text-textSecondary mt-1">Projection: {formatINR(projected)} by month end</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={()=>openEdit(b)} className="text-textSecondary hover:text-primary"><lucide.Edit2 size={16}/></button>
+                  <button onClick={()=>handleDelete(b.id)} className="text-textSecondary hover:text-danger"><lucide.Trash2 size={16}/></button>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-end mb-1">
+                  <span className={`text-2xl font-bold ${textClass}`}>{formatINR(spent)}</span>
+                  <span className="text-sm text-textSecondary font-medium">of {formatINR(b.limit)}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div className={`${bgClass} h-2.5 rounded-full`} style={{width: `${pct}%`}}></div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-textSecondary border border-border px-2 py-1 rounded bg-bg">Rem: {formatINR(remaining)}</span>
+                <span className="font-medium">{pct}% Used</span>
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editId ? "Edit Budget" : "Add Budget"}>
+        <form onSubmit={handleSave} className="space-y-4">
+          <Select 
+            label="Category"
+            required
+            value={category}
+            onChange={e => setCategory(e.target.value)}
+            options={[
+              "Food & Dining", "Transportation", "Entertainment", "Education", 
+              "Healthcare", "Shopping", "Utilities", "Rent", "Personal Care", 
+              "Travel", "Investment", "Miscellaneous"
+            ]}
+          />
+          <Input 
+            label="Monthly Limit (₹)" 
+            type="number" 
+            required 
+            min="1"
+            value={limit}
+            onChange={e => setLimit(e.target.value)}
+          />
+          <Input 
+            label="Alert Threshold (%)" 
+            type="number" 
+            required 
+            min="1"
+            max="100"
+            value={alertThreshold}
+            onChange={e => setAlertThreshold(e.target.value)}
+          />
+          <p className="text-xs text-textSecondary">You will be alerted when spending reaches {alertThreshold}% of the limit.</p>
+          <div className="pt-4 border-t flex justify-end gap-3">
+             <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+             <Button type="submit">{editId ? 'Update' : 'Save'} Budget</Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+
+/* --- Investments.js --- */
+const Investments = () => {
+  const { metalPrices, priceHistory, portfolio, setPortfolio, transactions, setTransactions, saveAll } = useApp();
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const [modalType, setModalType] = React.useState('buy'); // buy or sell
+  
+  // Trade Form State
+  const [metal, setMetal] = React.useState('Gold');
+  const [quantity, setQuantity] = React.useState('');
+  const [selectedHoldingId, setSelectedHoldingId] = React.useState('');
+
+  const handleBuy = (e) => {
+    e.preventDefault();
+    const qtyNum = parseFloat(quantity);
+    if (!qtyNum || qtyNum <= 0) return alert("Invalid quantity");
+    const pricePerGm = metal === 'Gold' ? metalPrices.gold : metalPrices.silver;
+    const totalCost = qtyNum * pricePerGm;
+
+    const newTx = {
+      id: generateUUID(),
+      type: 'expense', amount: totalCost, 
+      description: `Bought ${qtyNum}g ${metal}`, 
+      date: new Date().toISOString().split('T')[0], 
+      category: 'Investment', isAI: false
+    };
+
+    const newPortfolio = [...portfolio, {
+      id: generateUUID(), metal, quantity: qtyNum, buyPrice: pricePerGm, buyDate: new Date().toISOString().split('T')[0]
+    }];
+
+    setTransactions([newTx, ...transactions].sort((a,b) => new Date(b.date) - new Date(a.date)));
+    setPortfolio(newPortfolio);
+    saveAll([newTx, ...transactions], undefined, newPortfolio);
+    setIsModalOpen(false);
+  };
+
+  const handleSell = (e) => {
+    e.preventDefault();
+    const holding = portfolio.find(p => p.id === selectedHoldingId);
+    if (!holding) return;
+    const qtyNum = parseFloat(quantity);
+    if (!qtyNum || qtyNum <= 0 || qtyNum > holding.quantity) return alert("Invalid quantity");
+    
+    const currentPrice = holding.metal === 'Gold' ? metalPrices.gold : metalPrices.silver;
+    const proceeds = qtyNum * currentPrice;
+
+    const newTx = {
+      id: generateUUID(),
+      type: 'income', amount: proceeds, 
+      description: `Sold ${qtyNum}g ${holding.metal}`, 
+      date: new Date().toISOString().split('T')[0], 
+      category: 'Investment', isAI: false
+    };
+
+    const newPortfolio = portfolio.map(p => {
+      if (p.id === holding.id) {
+        return { ...p, quantity: p.quantity - qtyNum };
+      }
+      return p;
+    }).filter(p => p.quantity > 0);
+
+    setTransactions([newTx, ...transactions].sort((a,b) => new Date(b.date) - new Date(a.date)));
+    setPortfolio(newPortfolio);
+    saveAll([newTx, ...transactions], undefined, newPortfolio);
+    setIsModalOpen(false);
+  };
+
+  const openBuy = () => { setModalType('buy'); setMetal('Gold'); setQuantity(''); setIsModalOpen(true); };
+  const openSell = (h) => { setModalType('sell'); setSelectedHoldingId(h.id); setQuantity(h.quantity); setIsModalOpen(true); };
+
+  // Calculate stats
+  let totalInvested = 0;
+  let currentValue = 0;
+  let goldVal = 0; let silverVal = 0;
+
+  const holdingsDetail = portfolio.map(p => {
+    const cPrice = p.metal === 'Gold' ? metalPrices.gold : metalPrices.silver;
+    const inv = p.quantity * p.buyPrice;
+    const cur = p.quantity * cPrice;
+    const pnl = cur - inv;
+    const pnlPct = (pnl / inv) * 100;
+    
+    totalInvested += inv;
+    currentValue += cur;
+    if (p.metal === 'Gold') goldVal += cur;
+    else silverVal += cur;
+
+    return { ...p, currentPrice: cPrice, currentValue: cur, pnl, pnlPct };
+  });
+
+  const totalPnl = currentValue - totalInvested;
+  const totalPnlPct = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
+
+
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text');
+  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--color-surface');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-text">Gold & Silver Portfolio</h1>
+        <Button onClick={openBuy} className="bg-amber-600 hover:bg-amber-700 text-white"><lucide.Plus size={16}/> Buy Metal</Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+           <span className="text-sm font-medium text-textSecondary">Total Invested</span>
+           <div className="text-xl font-bold text-text">{formatINR(totalInvested)}</div>
+        </Card>
+        <Card>
+           <span className="text-sm font-medium text-textSecondary">Portfolio Value</span>
+           <div className="text-xl font-bold text-text">{formatINR(currentValue)}</div>
+        </Card>
+        <Card>
+           <span className="text-sm font-medium text-textSecondary">Total P&L</span>
+           <div className={`text-xl font-bold ${totalPnl >= 0 ? 'text-success' : 'text-danger'}`}>
+             {totalPnl >= 0 ? '+' : ''}{formatINR(totalPnl)}
+           </div>
+        </Card>
+        <Card>
+           <span className="text-sm font-medium text-textSecondary">Top Asset</span>
+           <div className="text-xl font-bold text-text">
+             {goldVal > silverVal ? 'Physical Gold' : silverVal > goldVal ? 'Physical Silver' : 'None'}
+           </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="flex flex-col">
+          <h3 className="font-semibold text-lg mb-4 flex items-center gap-2"><lucide.TrendingUp size={18}/> Live Metal Spot Prices</h3>
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+             <div className="flex-1 bg-gradient-to-br from-yellow-50 to-amber-100 p-4 rounded-xl border border-amber-200">
+               <div className="text-sm text-amber-800 font-medium mb-1">Gold 24K (99.9%)</div>
+               <div className="text-2xl font-bold text-amber-900">{formatINR(metalPrices.gold * 10)} <span className="text-sm font-normal">/ 10g</span></div>
+               <div className="text-sm text-success flex items-center gap-1"><lucide.ArrowUpRight size={14}/> 0.15% (Live Drift)</div>
+             </div>
+             <div className="flex-1 bg-gradient-to-br from-gray-50 to-slate-100 p-4 rounded-xl border border-border">
+               <div className="text-sm text-slate-700 font-medium mb-1">Silver (99.9%)</div>
+               <div className="text-2xl font-bold text-slate-800">{formatINR(metalPrices.silver)} <span className="text-sm font-normal">/ 1g</span></div>
+               <div className="text-sm text-success flex items-center gap-1"><lucide.ArrowUpRight size={14}/> 0.12% (Live Drift)</div>
+             </div>
+          </div>
+          <div className="h-64 w-full mt-auto">
+             <ResponsiveContainer width="100%" height="100%">
+               <LineChart data={priceHistory.gold} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                 <XAxis dataKey="date" stroke={textColor} tickFormatter={(v)=>v.slice(5)} textAnchor="end" tick={false} axisLine={false} />
+                 <YAxis domain={['auto', 'auto']} stroke={textColor} tickFormatter={(v) => `₹${v}`} axisLine={false} tickLine={false} />
+                 <Tooltip contentStyle={{ backgroundColor: surfaceColor, borderColor: 'var(--color-border)', color: textColor }} formatter={(val) => formatINR(val)} />
+                 <Legend wrapperStyle={{ color: textColor }} verticalAlign="top" height={36}/>
+                 <Line type="monotone" name="Gold Price/g" dataKey="price" stroke="#d97706" strokeWidth={2} dot={false} activeDot={{ r: 6 }} />
+               </LineChart>
+             </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col p-0 overflow-hidden">
+          <div className="p-4 border-b border-border">
+             <h3 className="font-semibold text-lg">Your Holdings</h3>
+          </div>
+          <div className="overflow-x-auto">
+             <table className="w-full text-left">
+               <thead className="bg-bg text-xs text-textSecondary">
+                 <tr>
+                   <th className="p-4 font-medium">Asset</th>
+                   <th className="p-4 font-medium">Quantity</th>
+                   <th className="p-4 font-medium">Avg Price</th>
+                   <th className="p-4 font-medium text-right">Value</th>
+                   <th className="p-4 font-medium text-right">P&L</th>
+                   <th className="p-4 font-medium text-center">Action</th>
+                 </tr>
+               </thead>
+               <tbody className="divide-y divide-gray-100 text-sm">
+                 {holdingsDetail.length > 0 ? holdingsDetail.map(h => (
+                   <tr key={h.id} className="hover:bg-bg/50">
+                     <td className="p-4 font-medium flex items-center gap-2">
+                       <span className={`w-2 h-2 rounded-full ${h.metal === 'Gold' ? 'bg-amber-500' : 'bg-slate-400'}`}></span>
+                       {h.metal}
+                     </td>
+                     <td className="p-4">{h.quantity}g</td>
+                     <td className="p-4 text-textSecondary">{formatINR(h.buyPrice)}/g</td>
+                     <td className="p-4 text-right font-medium">{formatINR(h.currentValue)}</td>
+                     <td className={`p-4 text-right font-medium ${h.pnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                       {h.pnl >= 0 ? '+' : ''}{h.pnlPct.toFixed(2)}%
+                     </td>
+                     <td className="p-4 text-center">
+                       <Button variant="outline" className="text-xs px-2 py-1" onClick={()=>openSell(h)}>Sell</Button>
+                     </td>
+                   </tr>
+                 )) : (
+                   <tr>
+                     <td colSpan="6" className="p-8 text-center text-textSecondary">No active holdings. Buy gold or silver to start investing.</td>
+                   </tr>
+                 )}
+               </tbody>
+             </table>
+          </div>
+        </Card>
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalType === 'buy' ? "Buy Metal" : "Sell Metal"}>
+        {modalType === 'buy' ? (
+           <form onSubmit={handleBuy} className="space-y-4">
+             <Select 
+               label="Select Metal" required value={metal} onChange={e => setMetal(e.target.value)}
+               options={["Gold", "Silver"]}
+             />
+             <Input 
+               label="Quantity (Grams)" type="number" required min="0.1" step="0.1"
+               value={quantity} onChange={e => setQuantity(e.target.value)}
+             />
+             {quantity && (
+               <div className="bg-bg p-4 rounded-lg flex justify-between items-center text-sm">
+                 <span className="text-textSecondary">Total Cost Estimate:</span>
+                 <span className="font-bold text-lg">{formatINR(parseFloat(quantity) * (metal === 'Gold' ? metalPrices.gold : metalPrices.silver))}</span>
+               </div>
+             )}
+             <div className="pt-4 border-t flex justify-end gap-3">
+               <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+               <Button type="submit" className="bg-amber-600 hover:bg-amber-700">Confirm Order</Button>
+             </div>
+           </form>
+        ) : (
+           <form onSubmit={handleSell} className="space-y-4">
+             {(() => {
+                const holding = portfolio.find(p => p.id === selectedHoldingId);
+                if(!holding) return null;
+                const cPrice = holding.metal === 'Gold' ? metalPrices.gold : metalPrices.silver;
+                return (
+                  <>
+                    <div className="text-sm mb-4 bg-blue-50 text-blue-800 p-3 rounded-lg border border-blue-200">
+                      You own <strong>{holding.quantity}g</strong> of {holding.metal}. Current spot price is {formatINR(cPrice)}/g.
+                    </div>
+                    <Input 
+                      label="Quantity to Sell (Grams)" type="number" required min="0.1" step="0.1" max={holding.quantity}
+                      value={quantity} onChange={e => setQuantity(e.target.value)}
+                    />
+                    {quantity && (
+                      <div className="bg-bg p-4 rounded-lg flex justify-between items-center text-sm">
+                        <span className="text-textSecondary">Estimated Proceeds:</span>
+                        <span className="font-bold text-lg text-success">{formatINR(parseFloat(quantity) * cPrice)}</span>
+                      </div>
+                    )}
+                    <div className="pt-4 border-t flex justify-end gap-3">
+                      <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                      <Button type="submit" variant="success">Execute Sell</Button>
+                    </div>
+                  </>
+                )
+             })()}
+           </form>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+
+/* --- Analytics.js --- */
+const Analytics = () => {
+  const { transactions } = useApp();
+  const [period, setPeriod] = React.useState('6'); // months back
+
+  const now = new Date();
+  
+  const filteredTx = React.useMemo(() => {
+    const cutoff = new Date(now.getFullYear(), now.getMonth() - parseInt(period) + 1, 1);
+    return transactions.filter(t => new Date(t.date) >= cutoff);
+  }, [transactions, period]);
+
+  // Area Chart (Savings Rate Trend)
+  const savingsData = [];
+  const pInt = parseInt(period);
+  for(let i=pInt-1; i>=0; i--) {
+    let d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    let m = d.getMonth(); let y = d.getFullYear();
+    let label = d.toLocaleString('default', { month: 'short' });
+    let inc = transactions.filter(t => t.type === 'income' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s,t) => s+t.amount, 0);
+    let exp = transactions.filter(t => t.type === 'expense' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s,t) => s+t.amount, 0);
+    let rate = inc > 0 ? parseFloat(((inc-exp)/inc * 100).toFixed(1)) : 0;
+    savingsData.push({ name: label, Rate: rate });
+  }
+
+  // Bar Chart (Income vs Expense)
+  const barData = savingsData.map((s, idx) => {
+    let d = new Date(now.getFullYear(), now.getMonth() - (pInt - 1 - idx), 1);
+    let m = d.getMonth(); let y = d.getFullYear();
+    let inc = transactions.filter(t => t.type === 'income' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s,t) => s+t.amount, 0);
+    let exp = transactions.filter(t => t.type === 'expense' && new Date(t.date).getMonth() === m && new Date(t.date).getFullYear() === y).reduce((s,t) => s+t.amount, 0);
+    return { name: s.name, Income: inc, Expense: exp };
+  });
+
+  // Pie Chart (Category Breakdown)
+  const expensesByCategory = filteredTx.filter(t => t.type === 'expense').reduce((acc, t) => {
+    acc[t.category] = (acc[t.category] || 0) + t.amount;
+    return acc;
+  }, {});
+  
+  const pieData = Object.keys(expensesByCategory).map(key => ({
+    name: key, value: expensesByCategory[key]
+  })).sort((a,b) => b.value - a.value);
+
+  const totalFilteredExpense = pieData.reduce((s, c) => s + c.value, 0);
+  const COLORS = ['#1a56db', '#7e3af2', '#057a55', '#e02424', '#c27803', '#0369a1', '#be185d', '#0f766e', '#4338ca', '#86198f', '#b91c1c'];
+
+
+  const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text');
+  const surfaceColor = getComputedStyle(document.documentElement).getPropertyValue('--color-surface');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h1 className="text-2xl font-bold text-text">Analytics</h1>
+        <Select 
+           value={period} onChange={(e) => setPeriod(e.target.value)}
+           options={[{label: 'Last 3 Months', value: '3'}, {label: 'Last 6 Months', value: '6'}, {label: 'Last 12 Months', value: '12'}]}
+           className="w-48"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="flex flex-col">
+          <h3 className="font-semibold text-lg mb-4">Savings Rate Trend</h3>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={savingsData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorRate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#7e3af2" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#7e3af2" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                <YAxis axisLine={false} tickLine={false} tickFormatter={(v)=>`${v}%`} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <Tooltip formatter={(v)=>`${v}%`} />
+                <Area type="monotone" dataKey="Rate" stroke="#7e3af2" fillOpacity={1} fill="url(#colorRate)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="flex flex-col">
+          <h3 className="font-semibold text-lg mb-4">Income vs Expenses</h3>
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
+                <XAxis dataKey="name" stroke={textColor} axisLine={false} tickLine={false} />
+                <YAxis stroke={textColor} axisLine={false} tickLine={false} tickFormatter={(v)=>`₹${v/1000}k`} />
+                <Tooltip formatter={(value) => formatINR(value)} contentStyle={{ backgroundColor: surfaceColor, borderColor: 'var(--color-border)', color: textColor }} />
+                <Legend wrapperStyle={{ color: textColor }} />
+                <Bar dataKey="Income" fill="#057a55" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Expense" fill="#e02424" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="flex flex-col lg:flex-row gap-8">
+         <div className="flex-1">
+           <h3 className="font-semibold text-lg mb-4">Category Breakdown</h3>
+           <div className="h-64 w-full relative">
+             {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} innerRadius={70} outerRadius={90} paddingAngle={2} dataKey="value">
+                    {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(value) => formatINR(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+             ) : (
+               <div className="flex h-full items-center justify-center text-textSecondary">No data for selected period</div>
+             )}
+             {pieData.length > 0 && <div className="absolute inset-0 flex items-center justify-center pointer-events-none flex-col">
+                <span className="text-textSecondary text-sm">Total</span>
+                <span className="text-xl font-bold">{formatINR(totalFilteredExpense)}</span>
+             </div>}
+           </div>
+         </div>
+         <div className="flex-1 overflow-y-auto max-h-80 pr-2">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-bg text-textSecondary">
+                <tr>
+                  <th className="py-2 px-3 font-medium">Category</th>
+                  <th className="py-2 px-3 font-medium text-right">Amount</th>
+                  <th className="py-2 px-3 font-medium text-right">%</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {pieData.map((d, i) => (
+                  <tr key={d.name}>
+                    <td className="py-3 px-3 flex items-center gap-2">
+                       <span className="w-3 h-3 rounded-full" style={{backgroundColor: COLORS[i % COLORS.length]}}></span>
+                       {d.name}
+                    </td>
+                    <td className="py-3 px-3 text-right font-medium">{formatINR(d.value)}</td>
+                    <td className="py-3 px-3 text-right text-textSecondary">{((d.value/totalFilteredExpense)*100).toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+         </div>
+      </Card>
+    </div>
+  );
+};
+
+
+/* --- Reports.js --- */
+const Reports = () => {
+  const { transactions, user, metalPrices, portfolio } = useApp();
+  const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth().toString());
+  const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear().toString());
+
+  const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const years = Array.from(new Set(transactions.map(t => new Date(t.date).getFullYear()))).sort().reverse();
+  if (years.length === 0) years.push(new Date().getFullYear());
+
+  const generatePDF = () => {
+    const doc = new window.jspdf.jsPDF();
+    const periodName = `${months[parseInt(selectedMonth)]} ${selectedYear}`;
+    
+    // Filter TX for period
+    const tMonth = parseInt(selectedMonth);
+    const tYear = parseInt(selectedYear);
+    const mTx = transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === tMonth && d.getFullYear() === tYear;
+    });
+
+    const inc = mTx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+    const exp = mTx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(26, 86, 219); // primary color
+    doc.text("SpendIQ", 14, 20);
+    
+    doc.setFontSize(16);
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Financial Report: ${periodName}`, 14, 30);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated for: ${user.name} (${user.email})`, 14, 36);
+    doc.text(`Date Generated: ${new Date().toLocaleDateString('en-IN')}`, 14, 42);
+
+    // Summary Table
+    doc.autoTable({
+      startY: 50,
+      head: [['Metric', 'Amount']],
+      body: [
+        ['Total Income', formatINR(inc)],
+        ['Total Expenses', formatINR(exp)],
+        ['Net Savings', formatINR(inc - exp)],
+        ['Savings Rate', inc > 0 ? `${((inc-exp)/inc*100).toFixed(1)}%` : '0%']
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [26, 86, 219] },
+      columnStyles: { 0: { fontStyle: 'bold' }, 1: { halign: 'right' } }
+    });
+
+    // Category Breakdown
+    const catMap = mTx.filter(t=>t.type==='expense').reduce((acc, t) => {
+      acc[t.category] = (acc[t.category] || 0) + t.amount;
+      return acc;
+    }, {});
+    const catBody = Object.keys(catMap).map(k => [k, formatINR(catMap[k])]).sort((a,b) => parseFloat(b[1].replace(/[₹,]/g,'')) - parseFloat(a[1].replace(/[₹,]/g,'')));
+
+    doc.text("Expense Breakdown", 14, doc.lastAutoTable.finalY + 15);
+    doc.autoTable({
+      startY: doc.lastAutoTable.finalY + 20,
+      head: [['Category', 'Amount']],
+      body: catBody.length ? catBody : [['No expenses', '-']],
+      theme: 'grid',
+      headStyles: { fillColor: [126, 58, 242] },
+      columnStyles: { 1: { halign: 'right' } }
+    });
+
+    // Top Expenses
+    const topExp = [...mTx.filter(t=>t.type==='expense')].sort((a,b)=>b.amount-a.amount).slice(0,5);
+    const topBody = topExp.map(t => [formatDate(t.date), t.description, t.category, formatINR(t.amount)]);
+    
+    doc.text("Top 5 Expenses", 14, doc.lastAutoTable.finalY + 15);
+    doc.autoTable({
+      startY: doc.lastAutoTable.finalY + 20,
+      head: [['Date', 'Description', 'Category', 'Amount']],
+      body: topBody.length ? topBody : [['-', 'No expenses', '-', '-']],
+      theme: 'striped',
+      headStyles: { fillColor: [224, 36, 36] },
+      columnStyles: { 3: { halign: 'right' } }
+    });
+
+    doc.save(`SpendIQ_Report_${months[parseInt(selectedMonth)]}_${selectedYear}.pdf`);
+  };
+
+  const exportCSV = () => {
+    const csvData = transactions.map(t => ({
+      Date: t.date,
+      Type: t.type,
+      Category: t.category,
+      Description: t.description,
+      Amount: t.amount,
+      AutoCategorized: t.isAI ? 'Yes' : 'No'
+    }));
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "transactions_export.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-text">Generate Reports</h1>
+      
+      <Card className="flex flex-col items-center py-10 text-center gap-6">
+         <div className="bg-primary/10 p-4 rounded-full text-primary">
+            <lucide.FileText size={48} />
+         </div>
+         <div>
+           <h2 className="text-xl font-bold mb-2">Monthly Financial Statement</h2>
+           <p className="text-textSecondary max-w-sm mx-auto">Generate a comprehensive, printable PDF report detailing your income, expenses, and investment breakdown.</p>
+         </div>
+         
+         <div className="flex gap-4 items-center mt-4">
+            <Select 
+               value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+               options={months.map((m,i)=>({label: m, value: i.toString()}))}
+               className="w-40"
+            />
+            <Select 
+               value={selectedYear} onChange={e => setSelectedYear(e.target.value)}
+               options={years.map(y=>({label: y, value: y.toString()}))}
+               className="w-32"
+            />
+         </div>
+
+         <div className="flex gap-4 mt-2">
+            <Button onClick={generatePDF} className="w-48"><lucide.Download size={18}/> Download PDF</Button>
+         </div>
+      </Card>
+
+      <Card className="flex justify-between items-center py-6">
+         <div>
+           <h3 className="font-semibold text-lg">Raw Data Export</h3>
+           <p className="text-sm text-textSecondary mt-1">Download all your transaction history as a CSV file to use in Excel or Sheets.</p>
+         </div>
+         <Button variant="outline" onClick={exportCSV} className="text-green-700 hover:bg-green-50 hover:text-green-800 border-green-200">
+           <lucide.Table size={18}/> Export CSV
+         </Button>
+      </Card>
+    </div>
+  );
+};
+
+
+/* --- Settings.js --- */
+const Settings = () => {
+  const { user, settings, setSettings, clearAllData } = useApp();
+  const [showClearConfirm, setShowClearConfirm] = React.useState(false);
+  const [showKey, setShowKey] = React.useState(false);
+
+  const colors = [
+    { id: 'blue', label: 'Ocean Blue', bg: 'bg-blue-600' },
+    { id: 'purple', label: 'Royal Purple', bg: 'bg-purple-600' },
+    { id: 'green', label: 'Emerald Green', bg: 'bg-green-600' },
+    { id: 'red', label: 'Crimson Red', bg: 'bg-red-600' },
+    { id: 'orange', label: 'Sunset Orange', bg: 'bg-orange-500' },
+    { id: 'midnight', label: 'Midnight', bg: 'bg-slate-700' }
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6 pb-20">
+      <h1 className="text-2xl font-bold text-text">Settings</h1>
+      
+      <Card title="Profile">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-bold">
+            {user?.name.charAt(0) || 'U'}
+          </div>
+          <div>
+            <h3 className="font-bold text-xl text-text">{user?.name}</h3>
+            <p className="text-textSecondary">{user?.email}</p>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Appearance">
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-text mb-3">Theme Mode</label>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { id: 'light', icon: lucide.Sun, label: 'Light' },
+                { id: 'dark', icon: lucide.Moon, label: 'Dark' },
+                { id: 'system', icon: lucide.Monitor, label: 'System' }
+              ].map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => setSettings({...settings, themeMode: mode.id})}
+                  className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                    settings.themeMode === mode.id 
+                      ? 'border-primary bg-primary/5 text-primary' 
+                      : 'border-border bg-surface text-textSecondary hover:border-border'
+                  }`}
+                >
+                  <mode.icon size={24} />
+                  <span className="text-sm font-medium">{mode.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-text mb-3">Accent Color</label>
+            <div className="flex flex-wrap gap-4">
+              {colors.map(c => (
+                <button 
+                  key={c.id}
+                  onClick={() => setSettings({...settings, accentColor: c.id})}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 ${c.bg} ${settings.accentColor === c.id ? 'ring-4 ring-offset-2 ring-primary ring-offset-bg' : ''}`}
+                  title={c.label}
+                >
+                  {settings.accentColor === c.id && <lucide.Check size={20} className="text-white" />}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 border border-border rounded-xl bg-surface flex items-center gap-4">
+             <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
+               <lucide.Wallet size={24} />
+             </div>
+             <div>
+               <p className="text-sm font-bold text-text">Mini Preview Card</p>
+               <p className="text-xs text-textSecondary">Your selected theme applied instantly.</p>
+             </div>
+             <button className="ml-auto bg-primary hover:bg-primaryHover text-white px-4 py-2 rounded-lg text-sm transition-colors">
+               Button
+             </button>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="AI Advisor">
+        <div className="space-y-4">
+          <div>
+            <label className="flex items-center justify-between text-sm font-medium text-text mb-1">
+              Anthropic API Key
+              {settings.anthropicKey 
+                ? <span className="text-green-500 flex items-center gap-1 text-xs"><lucide.CircleCheck size={12}/> Connected</span>
+                : <span className="text-red-500 flex items-center gap-1 text-xs"><lucide.CircleX size={12}/> Not configured</span>
+              }
+            </label>
+            <div className="relative">
+              <Input 
+                type={showKey ? "text" : "password"}
+                placeholder="sk-ant-..."
+                value={settings.anthropicKey || ''}
+                onChange={(e) => setSettings({...settings, anthropicKey: e.target.value})}
+              />
+              <button 
+                onClick={() => setShowKey(!showKey)}
+                className="absolute right-3 top-2.5 text-textSecondary hover:text-textSecondary"
+              >
+                {showKey ? <lucide.EyeOff size={18} /> : <lucide.Eye size={18} />}
+              </button>
+            </div>
+            <p className="text-xs text-textSecondary mt-2">Get your free API key at <a href="https://console.anthropic.com/" target="_blank" className="text-primary hover:underline">console.anthropic.com</a>. Stored locally in your browser.</p>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Preferences">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-text">Currency Format</p>
+              <p className="text-sm text-textSecondary">Used for all calculations and displays</p>
+            </div>
+            <Select 
+              value={settings.currency} 
+              onChange={e => setSettings({...settings, currency: e.target.value})}
+              options={[{value: 'INR', label: 'Indian Rupee (₹)'}, {value: 'USD', label: 'US Dollar ($)'}]}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-text">Budget Alerts</p>
+              <p className="text-sm text-textSecondary">Notify me when nearing budget limits</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" checked={settings.alertsEnabled} onChange={() => setSettings({...settings, alertsEnabled: !settings.alertsEnabled})} className="sr-only peer" />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-surface after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+            </label>
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Danger Zone">
+        <div className="border border-red-200 bg-red-50 p-4 rounded-lg">
+          <h3 className="font-bold text-red-800 mb-2">Reset All Data</h3>
+          <p className="text-sm text-red-600 mb-4">This will permanently delete all your transactions, budgets, investments, and settings. This cannot be undone.</p>
+          
+          {showClearConfirm ? (
+            <div className="flex gap-3">
+              <Button onClick={() => { clearAllData(); setShowClearConfirm(false); }} className="bg-red-600 hover:bg-red-700 text-white">Yes, Delete Everything</Button>
+              <Button onClick={() => setShowClearConfirm(false)} className="bg-gray-200 text-text hover:bg-gray-300">Cancel</Button>
+            </div>
+          ) : (
+            <Button onClick={() => setShowClearConfirm(true)} className="bg-red-600 hover:bg-red-700 text-white">Erase Workspace</Button>
+          )}
+        </div>
+      </Card>
+
+      <div className="text-center text-sm text-textSecondary mt-10">
+         SpendIQ v1.0.0<br/>Single-file React SPA using built-in NLP.
+      </div>
+    </div>
+  );
+};
+
+
+/* --- App.js --- */
+
+const App = () => {
+  return (
+    <AppProvider>
+      <HashRouter>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          
+          <Route path="/" element={<Layout><Navigate to="/dashboard" replace /></Layout>} />
+          <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
+          <Route path="/transactions" element={<Layout><Transactions /></Layout>} />
+          <Route path="/budget" element={<Layout><Budgets /></Layout>} />
+          <Route path="/investments" element={<Layout><Investments /></Layout>} />
+          <Route path="/analytics" element={<Layout><Analytics /></Layout>} />
+          <Route path="/reports" element={<Layout><Reports /></Layout>} />
+          <Route path="/settings" element={<Layout><Settings /></Layout>} />
+        </Routes>
+      </HashRouter>
+    </AppProvider>
+  );
+};
+
+
+/* --- index.js --- */
+const rootNode = document.getElementById('root');
+const root = ReactDOM.createRoot(rootNode);
+root.render(<App />);
+
+
+  </script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</body>
+</html>
