@@ -22,7 +22,7 @@
             text: 'var(--color-text)',
             textSecondary: 'var(--color-textSecondary)',
             border: 'var(--color-border)',
-            background: 'var(--color-bg)',
+            bg: 'var(--color-bg)',
             success: '#057a55',
             danger: '#e02424',
             warning: '#c27803',
@@ -565,7 +565,7 @@ ${portfolioText || '  No holdings'}
 
 /* --- ui.js --- */
 const Card = ({ children, className = '' }) => (
-  <div className={`custom-card p-6 ${className}`}>{children}</div>
+  <div className={`custom-card bg-surface border-border border p-6 ${className}`}>{children}</div>
 );
 
 const Button = ({ children, variant = 'primary', className = '', ...props }) => {

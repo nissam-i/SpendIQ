@@ -1,5 +1,5 @@
 const Card = ({ children, className = '' }) => (
-  <div className={`custom-card p-6 ${className}`}>{children}</div>
+  <div className={`custom-card bg-surface border-border border p-6 ${className}`}>{children}</div>
 );
 
 const Button = ({ children, variant = 'primary', className = '', ...props }) => {
