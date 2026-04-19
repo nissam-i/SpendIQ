@@ -31,11 +31,11 @@ const Chatbot = () => {
     setInput('');
     setIsTyping(true);
 
-    if (!settings.anthropicKey) {
+    if (!settings.geminiKey) {
        setTimeout(() => {
          setMessages([...updatedMessages, { 
            role: 'assistant', 
-           content: "Please add your Anthropic API key in Settings → AI Advisor to enable the chatbot."
+           content: "Please add your Google Gemini API key in Settings → AI Advisor to enable the chatbot."
          }]);
          setIsTyping(false);
        }, 800);
@@ -66,19 +66,19 @@ RULES:
 - Add relevant emojis for readability
 - Never make up data not provided in the context`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.geminiKey}`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-api-key": settings.anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true"
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20240620", // using standard 3.5 sonnet
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: updatedMessages.map(m => ({ role: m.role, content: m.content }))
+          systemInstruction: {
+            parts: [{ text: systemPrompt }]
+          },
+          contents: updatedMessages.map(m => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.content }]
+          }))
         })
       });
 
@@ -88,7 +88,8 @@ RULES:
       }
 
       const data = await response.json();
-      setMessages([...updatedMessages, { role: 'assistant', content: data.content[0].text }]);
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm sorry, I couldn't process that.";
+      setMessages([...updatedMessages, { role: 'assistant', content: text }]);
 
     } catch (error) {
       setMessages([...updatedMessages, { role: 'assistant', content: `⚠️ Error: ${error.message}` }]);
@@ -106,7 +107,7 @@ RULES:
           <div className="bg-primary p-4 text-white flex justify-between items-center">
              <div>
                <h3 className="font-bold font-lg flex items-center gap-2"><lucide.Bot size={20} /> 💰 FinAdvisor AI</h3>
-               <p className="text-xs text-primary-light opacity-90">Powered by Claude</p>
+               <p className="text-xs text-primary-light opacity-90">Powered by Gemini</p>
              </div>
              <button onClick={() => setIsOpen(false)} className="hover:bg-primary-hover p-1.5 rounded-full transition-colors">
                <lucide.X size={18} />

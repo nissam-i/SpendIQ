@@ -89,8 +89,8 @@ const Settings = () => {
         <div className="space-y-4">
           <div>
             <label className="flex items-center justify-between text-sm font-medium text-text mb-1">
-              Anthropic API Key
-              {settings.anthropicKey 
+              Google Gemini API Key
+              {settings.geminiKey 
                 ? <span className="text-green-500 flex items-center gap-1 text-xs"><lucide.CircleCheck size={12}/> Connected</span>
                 : <span className="text-red-500 flex items-center gap-1 text-xs"><lucide.CircleX size={12}/> Not configured</span>
               }
@@ -98,9 +98,9 @@ const Settings = () => {
             <div className="relative">
               <Input 
                 type={showKey ? "text" : "password"}
-                placeholder="sk-ant-..."
-                value={settings.anthropicKey || ''}
-                onChange={(e) => setSettings({...settings, anthropicKey: e.target.value})}
+                placeholder="AIzaSy..."
+                value={settings.geminiKey || ''}
+                onChange={(e) => setSettings({...settings, geminiKey: e.target.value})}
               />
               <button 
                 onClick={() => setShowKey(!showKey)}
@@ -109,7 +109,7 @@ const Settings = () => {
                 {showKey ? <lucide.EyeOff size={18} /> : <lucide.Eye size={18} />}
               </button>
             </div>
-            <p className="text-xs text-textSecondary mt-2">Get your free API key at <a href="https://console.anthropic.com/" target="_blank" className="text-primary hover:underline">console.anthropic.com</a>. Stored locally in your browser.</p>
+            <p className="text-xs text-textSecondary mt-2">Get your free API key at <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary hover:underline">Google AI Studio</a>. Stored locally in your browser.</p>
           </div>
         </div>
       </Card>
