@@ -66,7 +66,7 @@ RULES:
 - Add relevant emojis for readability
 - Never make up data not provided in the context`;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${settings.geminiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${settings.geminiKey}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
